@@ -70,7 +70,7 @@ if st.button("✨ 一键生成 4 组高级提示词", type="primary"):
     try:
         with st.spinner("Gemini 正在渲染商业场景..."):
             # 使用较新的通用模型版本
-            model = genai.GenerativeModel('gemini-3-flash-preview')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             response = model.generate_content(system_instruction)
             
             st.success("渲染完成！")
