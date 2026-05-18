@@ -97,7 +97,7 @@ for label, options in dims.items():
 st.divider()
 
 # --- 5. Gemini 生成逻辑 ---
-if st.button("✨ 一键生成 4 组高级提示词", type="primary"):
+if st.button("✨ 一键生成 4 组提示词", type="primary"):
     summary = []
     selected_size = "3:4" 
     
@@ -126,7 +126,7 @@ if st.button("✨ 一键生成 4 组高级提示词", type="primary"):
     """
 
     try:
-        with st.spinner("Gemini 正在全速渲染商业场景..."):
+        with st.spinner("Gemini 正在全速整理提示词..."):
             model = genai.GenerativeModel('gemini-3-flash-preview')
             response = model.generate_content(system_instruction)
             
@@ -144,7 +144,7 @@ if st.button("✨ 一键生成 4 组高级提示词", type="primary"):
 # --- 6. 结果展示区 (脱离按钮逻辑独立渲染) ---
 # 只要缓存里有内容，它就会一直显示，哪怕误触了上方的标签
 if st.session_state.current_prompt:
-    st.success("渲染完成！(下方内容已固定，修改参数不会导致其消失)")
+    st.success("渲染完成！")
     st.markdown(st.session_state.current_prompt)
 
 # --- 7. 历史记录功能 ---
