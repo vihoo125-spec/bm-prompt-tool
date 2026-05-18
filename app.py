@@ -73,4 +73,42 @@ for label, options in dims.items():
 st.divider()
 
 # --- 5. Gemini 生成逻辑 ---
-if st
+if st.button("✨ 一键生成 4 组高级提示词", type="primary"):
+    summary = []
+    selected_size = "3:4" # 默认尺寸
+    
+    for k, v in selected_options.items():
+        if k == "画面尺寸":
+            selected_size = v
+        else:
+            summary.append(f"{k}: {v}")
+    
+    input_str = " | ".join(summary) if summary else "无需特定限制，自由发挥，展现 BrunoMarc 的顶级商业质感"
+
+    # 注意这里的三个引号必须严格闭合
+    system_instruction = f"""
+    你是一位顶级的商业广告摄影师。你的任务是为 BrunoMarc 鞋履构思 4 个不同的拍摄场景，并写出中文自然语言提示词。
+    
+    【品牌调性】：高阶质感、现代职场精英、轻奢休闲。
+    
+    【生成规范】：
+    1. 使用具有画面感、电影感的中文自然语言描述。
+    2. 必须详细刻画：鞋子的材质光泽、整体服装的搭配衔接、环境的氛围以及光影的照射方向。
+    3. 严禁画面出现：畸变、多余鞋带、杂乱背景、糟糕人体比例、不自然布料褶皱等不良元素。
+    4. 直接输出4个段落即可，无需任何开场白或解释。
+    5. 每组提示词的最后，必须换行并单独加上这一句：比例：{selected_size}
+    
+    【客户指定的条件】：
+    {input_str}
+    """
+
+    try:
+        with st.spinner("Gemini 正在渲染商业场景..."):
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(system_instruction)
+            
+            st.success("渲染完成！")
+            st.markdown(response.text)
+            
+    except Exception as e:
+        st.error(f"生成失败: {e}")
