@@ -1,41 +1,60 @@
 import streamlit as st
 import google.generativeai as genai
 
-# --- 1. 页面配置与深度 UI 美化 ---
+# --- 1. 页面配置 ---
 st.set_page_config(page_title="BrunoMarc AI PRO", layout="wide")
 
-# 注入自定义 CSS，复刻截图里的“极简无边框纯文本”过滤条视觉效果
+# --- 核心 CSS 魔法：复刻流媒体筛选栏 UI ---
 st.markdown("""
     <style>
-    /* 隐藏选项的默认边框和背景 */
+    /* 全局背景设为暗色系以契合原图，并调整整体字体 */
+    .stApp {
+        background-color: #0E0E0E;
+        color: #E0E0E0;
+    }
+    
+    /* 隐藏默认的 pills 边框和背景，将其变成纯文本外观 */
     div[data-testid="stPills"] label {
         border: none !important;
         background-color: transparent !important;
         box-shadow: none !important;
-        padding: 6px 14px !important;
-        color: #888888 !important; /* 未选中时的灰色 */
+        padding: 4px 12px !important;
+        color: #A0A0A0 !important; /* 未选中时的浅灰色 */
         font-size: 15px !important;
         cursor: pointer;
+        transition: all 0.2s;
     }
-    /* 鼠标悬停时稍微变亮 */
+    
+    /* 鼠标悬停时的颜色变化 */
     div[data-testid="stPills"] label:hover {
-        color: #cccccc !important;
+        color: #FFFFFF !important;
     }
-    /* 选中状态：变成截图里的青色，并加粗 */
+    
+    /* 选中状态：纯文字变亮，不带背景框 */
     div[data-testid="stPills"] label[data-checked="true"] {
-        color: #00E5E5 !important; 
+        color: #FFFFFF !important; 
         font-weight: bold !important;
         background-color: transparent !important;
     }
-    /* 调整整体间距，让它看起来更紧凑 */
-    div[data-testid="stVerticalBlock"] {
-        gap: 0.5rem !important;
+
+    /* 左侧分类标题的样式（对应截图里的青色标题） */
+    .category-title {
+        color: #00E5E5;
+        font-weight: 600;
+        font-size: 15px;
+        line-height: 2.5; /* 让标题和右侧的标签垂直居中对齐 */
+        text-align: left;
+    }
+    
+    /* 调整列间距，让整体更紧凑 */
+    [data-testid="column"] {
+        padding-left: 0 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("👞 BrunoMarc 智能生图提示词实验室")
-st.caption("点击标签自由组合参数（单选），Gemini 自动生成电影级中文描述。")
+st.caption("点击文字自由组合参数（单选），Gemini 自动生成电影级中文描述。")
 
 # --- 2. 从“保险箱”安全读取 API Key ---
 try:
@@ -58,24 +77,32 @@ dims = {
     "画面尺寸": ["1:1", "2:3", "3:2", "16:9", "9:16"]
 }
 
-# --- 4. 标签化 UI 构建 ---
-st.write("### 🎯 场景参数 (同一参数仅支持单选，不选则由 AI 自由发挥)")
+# --- 4. 标签化 UI 构建 (分列排版) ---
+st.write("### 🎯 场景参数")
+st.markdown("<br>", unsafe_allow_html=True) # 增加一点留白
 
 selected_options = {}
 
-# 所有标签统一为单选模式
+# 遍历字典，将标题放在左列，选项放在右列
 for label, options in dims.items():
-    # 使用水平排版，让 label 和选项在一行（或者紧凑排布）
-    selected = st.pills(label, options, selection_mode="single", default=None)
-    if selected:
-        selected_options[label] = selected
+    col1, col2 = st.columns([1, 11]) # 1:11 的宽度比，左侧极窄
+    
+    with col1:
+        # 左侧青色标题
+        st.markdown(f'<div class="category-title">{label}</div>', unsafe_allow_html=True)
+    
+    with col2:
+        # 右侧选项（隐藏 Streamlit 原本的标题标签）
+        selected = st.pills(label, options, selection_mode="single", label_visibility="collapsed", key=f"pills_{label}")
+        if selected:
+            selected_options[label] = selected
 
 st.divider()
 
 # --- 5. Gemini 生成逻辑 ---
 if st.button("✨ 一键生成 4 组高级提示词", type="primary"):
     summary = []
-    selected_size = "3:4" # 默认尺寸
+    selected_size = "3:4" 
     
     for k, v in selected_options.items():
         if k == "画面尺寸":
@@ -85,7 +112,6 @@ if st.button("✨ 一键生成 4 组高级提示词", type="primary"):
     
     input_str = " | ".join(summary) if summary else "无需特定限制，自由发挥，展现 BrunoMarc 的顶级商业质感"
 
-    # 注意这里的三个引号必须严格闭合
     system_instruction = f"""
     你是一位顶级的商业广告摄影师。你的任务是为 BrunoMarc 鞋履构思 4 个不同的拍摄场景，并写出中文自然语言提示词。
     
@@ -103,8 +129,9 @@ if st.button("✨ 一键生成 4 组高级提示词", type="primary"):
     """
 
     try:
-        with st.spinner("Gemini 正在渲染商业场景..."):
-            model = genai.GenerativeModel('gemini-2.5-flash')
+        with st.spinner("Gemini 正在全速渲染商业场景..."):
+            # 使用最新预览版模型，解除频率限制提示
+            model = genai.GenerativeModel('gemini-3-flash-preview')
             response = model.generate_content(system_instruction)
             
             st.success("渲染完成！")
