@@ -10,47 +10,68 @@ if "current_prompts_list" not in st.session_state:
 if "prompt_history" not in st.session_state:
     st.session_state.prompt_history = []
 
-# --- 核心 CSS 魔法：复刻流媒体筛选栏 UI + 移除所有输入框的边框与滑块 ---
+# --- 核心 CSS 魔法：深度像素级复刻流媒体无边框文本筛选栏 ---
 st.markdown("""
     <style>
+    /* 全局暗黑背景 */
     .stApp {
         background-color: #0E0E0E;
         color: #E0E0E0;
     }
+    
+    /* 彻底扒掉 Pills 组件的外壳，将其变为纯文字展示 */
+    div[data-testid="stPills"] {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }
+    div[data-testid="stPills"] div[data-testid="stHorizontalBlock"] {
+        gap: 0px !important; /* 消除原生块间距 */
+    }
+    
+    /* 普通选项文字样式：完全扁平，无背景，无边框 */
     div[data-testid="stPills"] label {
         border: none !important;
         background-color: transparent !important;
         box-shadow: none !important;
-        padding: 4px 12px !important;
-        color: #A0A0A0 !important; 
+        padding: 4px 16px !important; /* 调整左右间距，复刻原图文字排布 */
+        color: #A0A0A0 !important; /* 未选中时的浅灰色 */
         font-size: 15px !important;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: color 0.2s ease;
+        border-radius: 0px !important;
     }
+    
+    /* 鼠标悬停变白 */
     div[data-testid="stPills"] label:hover {
         color: #FFFFFF !important;
-    }
-    div[data-testid="stPills"] label[data-checked="true"] {
-        color: #FFFFFF !important; 
-        font-weight: bold !important;
         background-color: transparent !important;
     }
+    
+    /* 核心高亮：选中状态变为高亮纯色（对应原图的青色/白色激活态），无底色气泡 */
+    div[data-testid="stPills"] label[data-checked="true"] {
+        color: #00E5E5 !important; /* 激活时的高亮青色 */
+        font-weight: bold !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* 左侧分类标题样式 */
     .category-title {
         color: #00E5E5;
         font-weight: 600;
         font-size: 15px;
-        line-height: 2.5; 
+        line-height: 2.2; 
         text-align: left;
     }
+    
+    /* 紧凑布局微调 */
     [data-testid="column"] {
         padding-left: 0 !important;
-    }
-    div[data-testid="stExpander"] {
-        border-color: #333333 !important;
-        background-color: #1A1A1A !important;
+        padding-right: 0 !important;
     }
     
-    /* 核心修改：强制让文本框无边框、无滚动条、完全平铺展示 */
+    /* 强制重置结果区文本框，使其完全融入背景、平铺不带任何滚动条 */
     div[data-testid="stTextArea"] textarea {
         background-color: #121212 !important;
         color: #E0E0E0 !important;
@@ -58,12 +79,15 @@ st.markdown("""
         border-radius: 6px !important;
         font-size: 15px !important;
         line-height: 1.6 !important;
-        overflow-y: hidden !important; /* 彻底移除纵向滚动滑块 */
+        overflow-y: hidden !important; 
         resize: none !important;
     }
-    /* 隐藏文本框自带的行数标签栏 */
     div[data-testid="stTextArea"] label {
         display: none !important;
+    }
+    div[data-testid="stExpander"] {
+        border-color: #333333 !important;
+        background-color: #1A1A1A !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -88,7 +112,7 @@ dims = {
     "季节氛围": ["春", "夏", "秋", "冬"],
     "服装搭配": ["修身西装套装", "商务休闲装", "直筒牛仔休闲装", "清爽短装", "毛呢大衣"],
     "人物动作": ["松弛站立", "迈步行走", "双腿交叠坐姿"],
-    "拍摄场地": ["现代极简办公室", "欧洲街头", "奢华写字楼", "咖啡店", "机场", "米其林餐厅"],
+    "拍摄场地": ["现代极简办公室", "欧洲街头", "奢华写字楼", "咖啡店", "机场VIP候机厅", "米其林餐厅"],
     "光影风格": ["室内自然光", "室外自然光", "午后侧光", "晚宴闪光灯", "百叶窗切割光影"],
     "画面尺寸": ["1:1", "2:3", "3:2", "16:9", "9:16"]
 }
@@ -131,7 +155,7 @@ if st.button("✨ 一键生成 4 组提示词", type="primary"):
     【🔥 鞋款与材质绝对绑定准则 - 严防冲突】：
     你必须根据当前选中的鞋子款式，应用完全不同的材质细节描述：
     1. 当用户选中【运动鞋】或【休闲平底鞋】时：严禁出现“亮面牛皮”、“抛光皮革”、“擦色漆皮”、“正装中底”等任何商务正装鞋的词汇！必须具体刻画为“科技网面透气材质”、“细腻磨砂绒面”、“轻量化运动中底”或“高弹橡胶鞋底细节”。服装必须往阳光活力或现代街头方向延伸。
-    2. 当用户选中【商务牛津鞋】、【正装皮鞋】或【乐福鞋】时：必须具体刻画为“顶级抛光牛皮”、“细腻擦色鞋尖”、“高级皮革半哑光泽”或“精细缝线皮革侧面”。
+    2. 当用户选中【商务牛津鞋】、【正装皮鞋】或【乐福鞋】时：必须具体刻画为“顶级抛光牛皮”、“细腻擦色鞋尖”、“高级皮革半哑光泽”或  “精细缝线皮革侧面”。
     
     【核心硬性准则】：
     你必须高强度地扣紧客户指定的条件！凡是用户选中的参数，必须在生成的文本中作为“核心视觉支配元素”得到显性呈现。
@@ -169,18 +193,16 @@ if st.button("✨ 一键生成 4 组提示词", type="primary"):
     except Exception as e:
         st.error(f"生成失败: {e}")
 
-# --- 6. 结果展示区 (100%全平铺展示 + 自带原生右上角一键复制) ---
+# --- 6. 结果展示区 (彻底闭合了双引号，修复了报错) ---
 if st.session_state.current_prompts_list:
-    st.success("渲染完成！)
+    st.success("渲染完成！(下方内容已固定，修改参数不会导致其消失)")
     
     for idx, prompt_text in enumerate(st.session_state.current_prompts_list):
         st.markdown(f"##### 🎬 场景方案 {idx + 1}")
         
-        # 计算当前文本的大致行数，动态自适应高度，确保完全撑开不加滚动条
         lines_count = max(len(prompt_text.split('\n')), 4)
-        box_height = lines_count * 28  # 根据行数动态计算完美像素高度
+        box_height = lines_count * 28  
         
-        # 使用原生文本展示，右上角自带官方复制按钮
         st.text_area(
             label=f"prompt_{idx}", 
             value=prompt_text, 
