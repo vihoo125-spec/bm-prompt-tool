@@ -173,7 +173,7 @@ if st.button("✨ 一键生成 4 组提示词", type="primary"):
 
     try:
         with st.spinner("Gemini 正在全速整理提示词..."):
-            model = genai.GenerativeModel('gemini-3-flash-preview')
+            model = genai.GenerativeModel('gemini-3.5-flash-preview')
             response = model.generate_content(system_instruction)
             
             raw_text = response.text
