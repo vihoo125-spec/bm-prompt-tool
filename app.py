@@ -6,11 +6,11 @@ st.set_page_config(page_title="BrunoMarc AI PRO", layout="wide")
 
 # --- 🎯 初始化 Session State 缓存 ---
 if "current_prompts_list" not in st.session_state:
-    st.session_state.current_prompts_list = [] # 改用列表存储4个独立的段落
+    st.session_state.current_prompts_list = [] 
 if "prompt_history" not in st.session_state:
     st.session_state.prompt_history = []
 
-# --- 核心 CSS 魔法：复刻流媒体筛选栏 UI ---
+# --- 核心 CSS 魔法：复刻流媒体筛选栏 UI + 移除所有输入框的边框与滑块 ---
 st.markdown("""
     <style>
     .stApp {
@@ -49,13 +49,21 @@ st.markdown("""
         border-color: #333333 !important;
         background-color: #1A1A1A !important;
     }
-    /* 优化独立结果卡片的视觉，带一点微弱边框 */
-    .prompt-result-box {
-        border: 1px solid #262626;
-        border-radius: 6px;
-        padding: 12px;
-        margin-bottom: 10px;
-        background-color: #121212;
+    
+    /* 核心修改：强制让文本框无边框、无滚动条、完全平铺展示 */
+    div[data-testid="stTextArea"] textarea {
+        background-color: #121212 !important;
+        color: #E0E0E0 !important;
+        border: 1px solid #262626 !important;
+        border-radius: 6px !important;
+        font-size: 15px !important;
+        line-height: 1.6 !important;
+        overflow-y: hidden !important; /* 彻底移除纵向滚动滑块 */
+        resize: none !important;
+    }
+    /* 隐藏文本框自带的行数标签栏 */
+    div[data-testid="stTextArea"] label {
+        display: none !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -73,14 +81,14 @@ except KeyError:
 
 # --- 3. 维度参数配置 ---
 dims = {
-    "鞋履款式": ["商务牛津鞋", "乐福鞋", "运动鞋", "正装皮鞋", "靴子"],
+    "鞋履款式": ["商务牛津鞋", "乐福鞋", "运动鞋", "正装皮鞋", "休闲平底鞋"],
     "人种角色": ["白人", "黑人"],
     "拍摄视角": ["正视", "侧视", "俯视", "仰视", "背影"],
     "人物构图": ["全身", "半身", "特写"],
     "季节氛围": ["春", "夏", "秋", "冬"],
     "服装搭配": ["修身西装套装", "商务休闲装", "直筒牛仔休闲装", "清爽短装", "毛呢大衣"],
     "人物动作": ["松弛站立", "迈步行走", "双腿交叠坐姿"],
-    "拍摄场地": ["现代极简办公室", "欧洲街头", "奢华写字楼", "咖啡店", "机场VIP候机厅", "米其林餐厅"],
+    "拍摄场地": ["现代极简办公室", "欧洲街头", "奢华写字楼", "咖啡店", "机场", "米其林餐厅"],
     "光影风格": ["室内自然光", "室外自然光", "午后侧光", "晚宴闪光灯", "百叶窗切割光影"],
     "画面尺寸": ["1:1", "2:3", "3:2", "16:9", "9:16"]
 }
@@ -106,21 +114,17 @@ st.divider()
 if st.button("✨ 一键生成 4 组提示词", type="primary"):
     summary = []
     selected_size = None 
-    current_style = "未知款式"
     
     for k, v in selected_options.items():
         if k == "画面尺寸":
             selected_size = v
         else:
             summary.append(f"【{k}】: {v}")
-            if k == "鞋履款式":
-                current_style = v
     
     input_str = " | ".join(summary) if summary else "无需特定限制，自由发挥，展现 BrunoMarc 的顶级商业质感"
 
     size_instruction = f"每组提示词的最后，必须换行并单独加上这一句：比例：{selected_size}" if selected_size else "由于客户未指定画面尺寸选项，提示词结尾绝对不允许出现任何比例信息、尺寸描述或相关尾缀。"
 
-    # 注入硬性的材质对应规则，解决鞋款与描述冲突的问题
     system_instruction = f"""
     你是一位顶级的商业广告摄影师。你的任务是严格根据客户指定的参数条件，为 BrunoMarc 品牌鞋履构思 4 个不同的高级拍摄场景，并写出中文自然语言提示词。
     
@@ -149,16 +153,13 @@ if st.button("✨ 一键生成 4 组提示词", type="primary"):
             response = model.generate_content(system_instruction)
             
             raw_text = response.text
-            # 兼容处理 AI 没有严格用 [SPLIT] 隔开的情况，按换行切分
             if "[SPLIT]" in raw_text:
                 parts = [p.strip() for p in raw_text.split("[SPLIT]") if p.strip()]
             else:
                 parts = [p.strip() for p in raw_text.split("\n\n") if p.strip()]
             
-            # 确保只有4组
             final_parts = parts[:4]
             
-            # 存入缓存
             st.session_state.current_prompts_list = final_parts
             st.session_state.prompt_history.insert(0, {
                 "params": input_str,
@@ -168,14 +169,24 @@ if st.button("✨ 一键生成 4 组提示词", type="primary"):
     except Exception as e:
         st.error(f"生成失败: {e}")
 
-# --- 6. 结果展示区 (脱离按钮逻辑独立渲染 + 自带一键复制组件) ---
+# --- 6. 结果展示区 (100%全平铺展示 + 自带原生右上角一键复制) ---
 if st.session_state.current_prompts_list:
-    st.success("渲染完成！(下方内容已固定，修改参数不会导致其消失)")
+    st.success("渲染完成！)
     
     for idx, prompt_text in enumerate(st.session_state.current_prompts_list):
         st.markdown(f"##### 🎬 场景方案 {idx + 1}")
-        # 使用 st.code 组件包裹自然语言，右侧会自动出现官方原生的“一键复制”图标，交互极佳
-        st.code(prompt_text, language="markdown")
+        
+        # 计算当前文本的大致行数，动态自适应高度，确保完全撑开不加滚动条
+        lines_count = max(len(prompt_text.split('\n')), 4)
+        box_height = lines_count * 28  # 根据行数动态计算完美像素高度
+        
+        # 使用原生文本展示，右上角自带官方复制按钮
+        st.text_area(
+            label=f"prompt_{idx}", 
+            value=prompt_text, 
+            height=box_height, 
+            key=f"display_area_{idx}"
+        )
 
 # --- 7. 历史记录功能 ---
 if st.session_state.prompt_history:
@@ -187,4 +198,10 @@ if st.session_state.prompt_history:
         with st.expander(f"🕒 记录 {i+1} | {param_preview}"):
             for idx, hist_text in enumerate(record["content"]):
                 st.markdown(f"**方案 {idx + 1}**")
-                st.code(hist_text, language="markdown")
+                hist_lines = max(len(hist_text.split('\n')), 4)
+                st.text_area(
+                    label=f"hist_prompt_{i}_{idx}", 
+                    value=hist_text, 
+                    height=hist_lines * 28, 
+                    key=f"hist_area_{i}_{idx}"
+                )
