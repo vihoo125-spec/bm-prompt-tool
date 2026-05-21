@@ -5,8 +5,8 @@ import google.generativeai as genai
 st.set_page_config(page_title="BrunoMarc AI PRO", layout="wide")
 
 # --- 🎯 初始化 Session State 缓存 ---
-if "current_prompt" not in st.session_state:
-    st.session_state.current_prompt = None
+if "current_prompts_list" not in st.session_state:
+    st.session_state.current_prompts_list = [] # 改用列表存储4个独立的段落
 if "prompt_history" not in st.session_state:
     st.session_state.prompt_history = []
 
@@ -49,6 +49,14 @@ st.markdown("""
         border-color: #333333 !important;
         background-color: #1A1A1A !important;
     }
+    /* 优化独立结果卡片的视觉，带一点微弱边框 */
+    .prompt-result-box {
+        border: 1px solid #262626;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 10px;
+        background-color: #121212;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -63,11 +71,11 @@ except KeyError:
     st.error("⚠️ 未在云端 Secrets 找到 API Key，请检查部署后台的设置。")
     st.stop()
 
-# --- 3. 维度参数配置（已加入拍摄视角） ---
+# --- 3. 维度参数配置 ---
 dims = {
-    "鞋履款式": ["商务牛津鞋", "乐福鞋", "运动鞋", "正装皮鞋", "休闲平底鞋"],
+    "鞋履款式": ["商务牛津鞋", "乐福鞋", "运动鞋", "正装皮鞋", "靴子"],
     "人种角色": ["白人", "黑人"],
-    "拍摄视角": ["正视", "侧视", "俯视", "仰视", "背影"], # 新增视角参数
+    "拍摄视角": ["正视", "侧视", "俯视", "仰视", "背影"],
     "人物构图": ["全身", "半身", "特写"],
     "季节氛围": ["春", "夏", "秋", "冬"],
     "服装搭配": ["修身西装套装", "商务休闲装", "直筒牛仔休闲装", "清爽短装", "毛呢大衣"],
@@ -97,32 +105,38 @@ st.divider()
 # --- 5. Gemini 生成逻辑 ---
 if st.button("✨ 一键生成 4 组提示词", type="primary"):
     summary = []
-    selected_size = None # 默认不设定任何尺寸
+    selected_size = None 
+    current_style = "未知款式"
     
     for k, v in selected_options.items():
         if k == "画面尺寸":
             selected_size = v
         else:
             summary.append(f"【{k}】: {v}")
+            if k == "鞋履款式":
+                current_style = v
     
     input_str = " | ".join(summary) if summary else "无需特定限制，自由发挥，展现 BrunoMarc 的顶级商业质感"
 
-    # 动态尺寸尾缀生成规则
     size_instruction = f"每组提示词的最后，必须换行并单独加上这一句：比例：{selected_size}" if selected_size else "由于客户未指定画面尺寸选项，提示词结尾绝对不允许出现任何比例信息、尺寸描述或相关尾缀。"
 
+    # 注入硬性的材质对应规则，解决鞋款与描述冲突的问题
     system_instruction = f"""
     你是一位顶级的商业广告摄影师。你的任务是严格根据客户指定的参数条件，为 BrunoMarc 品牌鞋履构思 4 个不同的高级拍摄场景，并写出中文自然语言提示词。
     
-    【核心硬性准则 - 增强关联性】：
-    你必须高强度地扣紧客户指定的条件！凡是用户选中的参数（如具体的拍摄视角、动作、构图等），必须在生成的文本中作为“核心视觉支配元素”得到显性呈现。严禁漏掉、严禁擅自篡改、严禁让 AI 的随意发挥冲淡了用户选定参数的权重。未选择的参数则基于品牌调性自然补充。
+    【🔥 鞋款与材质绝对绑定准则 - 严防冲突】：
+    你必须根据当前选中的鞋子款式，应用完全不同的材质细节描述：
+    1. 当用户选中【运动鞋】或【休闲平底鞋】时：严禁出现“亮面牛皮”、“抛光皮革”、“擦色漆皮”、“正装中底”等任何商务正装鞋的词汇！必须具体刻画为“科技网面透气材质”、“细腻磨砂绒面”、“轻量化运动中底”或“高弹橡胶鞋底细节”。服装必须往阳光活力或现代街头方向延伸。
+    2. 当用户选中【商务牛津鞋】、【正装皮鞋】或【乐福鞋】时：必须具体刻画为“顶级抛光牛皮”、“细腻擦色鞋尖”、“高级皮革半哑光泽”或“精细缝线皮革侧面”。
     
-    【品牌调性】：高阶质感、现代职场精英、轻奢休闲。
+    【核心硬性准则】：
+    你必须高强度地扣紧客户指定的条件！凡是用户选中的参数，必须在生成的文本中作为“核心视觉支配元素”得到显性呈现。
     
     【生成规范】：
     1. 使用具有强画面感、电影广告质感的中文自然语言描述。
-    2. 必须精细刻画：用户指定的鞋子款式与材质光泽、整体着装的搭配衔接、特定的拍摄视角和环境的氛围，以及光影的照射方向。
-    3. 严禁画面出现：畸变、多余鞋带、杂乱背景、糟糕人体比例、不自然布料褶皱等不良元素。
-    4. 直接输出4个段落即可，无需任何开场白、过渡句或解释。
+    2. 必须精细刻画：对应的鞋子款式与正确材质、整体着装的搭配衔接、特定的拍摄视角和环境的氛围，以及光影的照射方向。
+    3. 严禁画面出现：畸变、多余鞋带、杂乱背景、糟糕人体比例等不良元素。
+    4. 必须输出正好 4 个独立的场景段落。每两组之间用特殊符号 `[SPLIT]` 隔开，以便系统切分。不要有任何开场白、序号或结束语。
     5. 【尺寸尾缀规则】：{size_instruction}
     
     【客户指定的硬性参数条件】：
@@ -134,19 +148,34 @@ if st.button("✨ 一键生成 4 组提示词", type="primary"):
             model = genai.GenerativeModel('gemini-3-flash-preview')
             response = model.generate_content(system_instruction)
             
-            st.session_state.current_prompt = response.text
+            raw_text = response.text
+            # 兼容处理 AI 没有严格用 [SPLIT] 隔开的情况，按换行切分
+            if "[SPLIT]" in raw_text:
+                parts = [p.strip() for p in raw_text.split("[SPLIT]") if p.strip()]
+            else:
+                parts = [p.strip() for p in raw_text.split("\n\n") if p.strip()]
+            
+            # 确保只有4组
+            final_parts = parts[:4]
+            
+            # 存入缓存
+            st.session_state.current_prompts_list = final_parts
             st.session_state.prompt_history.insert(0, {
                 "params": input_str,
-                "content": response.text
+                "content": final_parts
             })
             
     except Exception as e:
         st.error(f"生成失败: {e}")
 
-# --- 6. 结果展示区 ---
-if st.session_state.current_prompt:
-    st.success("渲染完成！")
-    st.markdown(st.session_state.current_prompt)
+# --- 6. 结果展示区 (脱离按钮逻辑独立渲染 + 自带一键复制组件) ---
+if st.session_state.current_prompts_list:
+    st.success("渲染完成！(下方内容已固定，修改参数不会导致其消失)")
+    
+    for idx, prompt_text in enumerate(st.session_state.current_prompts_list):
+        st.markdown(f"##### 🎬 场景方案 {idx + 1}")
+        # 使用 st.code 组件包裹自然语言，右侧会自动出现官方原生的“一键复制”图标，交互极佳
+        st.code(prompt_text, language="markdown")
 
 # --- 7. 历史记录功能 ---
 if st.session_state.prompt_history:
@@ -156,4 +185,6 @@ if st.session_state.prompt_history:
     for i, record in enumerate(st.session_state.prompt_history[:10]):
         param_preview = record['params'][:40] + "..." if len(record['params']) > 40 else record['params']
         with st.expander(f"🕒 记录 {i+1} | {param_preview}"):
-            st.markdown(record["content"])
+            for idx, hist_text in enumerate(record["content"]):
+                st.markdown(f"**方案 {idx + 1}**")
+                st.code(hist_text, language="markdown")
